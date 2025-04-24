@@ -54,14 +54,23 @@ RUN ./configure \
 # 阶段2：生成最终镜像
 FROM nginx:1.24.0
 
-# 从builder阶段复制模块（使用固定路径）
+# 安装运行时依赖
+RUN apt-get update && \
+    apt-get install -y \
+        libpcre3 \
+        zlib1g \
+        openssl && \
+    rm -rf /var/lib/apt/lists/*
+
+# 从builder阶段复制模块
 COPY --from=builder /nginx-src/objs/ngx_http_subs_filter_module.so /usr/lib/nginx/modules/
 
-# 启用模块
-RUN echo "load_module modules/ngx_http_subs_filter_module.so;" > /etc/nginx/conf.d/subs-filter.conf
+# 在主配置文件顶部插入模块加载指令
+RUN echo "load_module modules/ngx_http_subs_filter_module.so;" | cat - /etc/nginx/nginx.conf > /tmp/nginx.conf && \
+    mv /tmp/nginx.conf /etc/nginx/nginx.conf
 
-# 复制配置文件
+# 复制配置文件（确保nginx.conf中没有重复的load_module指令）
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # 验证模块加载
-RUN nginx -t 2>&1 | grep -q "subs filter module" && echo "Module loaded successfully" || (echo "Module load failed" && exit 1)
+RUN nginx -T 2>&1 | grep "subs filter module" && echo "Module verification passed" || (echo "Module verification failed" && exit 1)
