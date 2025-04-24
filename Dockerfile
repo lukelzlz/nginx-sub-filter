@@ -1,5 +1,6 @@
+# 阶段1：编译模块
 FROM debian:bookworm-slim as builder
-# 安装依赖
+
 RUN apt-get update && \
     apt-get install -y \
         git \
@@ -11,13 +12,16 @@ RUN apt-get update && \
         autoconf \
         libtool \
         wget
-# 下载Nginx源码
-RUN wget https://nginx.org/download/nginx-1.25.3.tar.gz && \
-    tar -zxvf nginx-1.25.3.tar.gz && \
-    mv nginx-1.25.3 nginx-src
+
+# 下载Nginx源码（版本硬编码）
+RUN wget https://nginx.org/download/nginx-1.24.0.tar.gz && \
+    tar -zxvf nginx-1.24.0.tar.gz && \
+    mv nginx-1.24.0 nginx-src
+
 # 下载subs-filter模块
 RUN mkdir -p /tmp/modules && \
     git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module.git /tmp/modules/subs-filter
+
 # 编译模块
 WORKDIR /nginx-src
 RUN ./configure \
@@ -46,18 +50,17 @@ RUN ./configure \
         --with-http_auth_request_module && \
     make modules
 
-# 最终镜像
-FROM nginx:stable
+# ----------------------------
+# 阶段2：生成最终镜像
+FROM nginx:1.24.0
 
-# 从builder阶段复制编译好的模块
-COPY --from=builder \
-     /tmp/nginx-$(cat /tmp/nginx_version | cut -d'/' -f2)/objs/ngx_http_subs_filter_module.so \
-     /usr/lib/nginx/modules/
+# 从builder阶段复制模块（使用固定路径）
+COPY --from=builder /nginx-src/objs/ngx_http_subs_filter_module.so /usr/lib/nginx/modules/
 
 # 启用模块
 RUN echo "load_module modules/ngx_http_subs_filter_module.so;" > /etc/nginx/modules-enabled/50-subs-filter.conf
 
-# 复制配置文件（这里使用你提供的配置）
+# 复制配置文件
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # 验证模块加载
