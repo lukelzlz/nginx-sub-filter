@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim as builder
 # 安装依赖
 RUN apt-get update && \
     apt-get install -y \
