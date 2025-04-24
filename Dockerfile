@@ -58,7 +58,7 @@ FROM nginx:1.24.0
 COPY --from=builder /nginx-src/objs/ngx_http_subs_filter_module.so /usr/lib/nginx/modules/
 
 # 启用模块
-RUN echo "load_module modules/ngx_http_subs_filter_module.so;" > /etc/nginx/modules-enabled/50-subs-filter.conf
+RUN echo "load_module modules/ngx_http_subs_filter_module.so;" > /etc/nginx/conf.d/subs-filter.conf
 
 # 复制配置文件
 COPY nginx.conf /etc/nginx/nginx.conf
