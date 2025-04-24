@@ -53,24 +53,27 @@ RUN ./configure \
 # ----------------------------
 # 阶段2：生成最终镜像
 FROM nginx:1.24.0
-
 # 安装运行时依赖
 RUN apt-get update && \
     apt-get install -y \
         libpcre3 \
         zlib1g \
-        openssl && \
+        openssl \
+        binutils && \  # 添加objdump用于模块验证
     rm -rf /var/lib/apt/lists/*
 
 # 从builder阶段复制模块
 COPY --from=builder /nginx-src/objs/ngx_http_subs_filter_module.so /usr/lib/nginx/modules/
 
-# 在主配置文件顶部插入模块加载指令
+# 先复制用户配置
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# 插入模块加载指令到主配置顶部（覆盖后操作）
 RUN echo "load_module modules/ngx_http_subs_filter_module.so;" | cat - /etc/nginx/nginx.conf > /tmp/nginx.conf && \
     mv /tmp/nginx.conf /etc/nginx/nginx.conf
 
-# 复制配置文件（确保nginx.conf中没有重复的load_module指令）
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# 验证模块加载
-RUN nginx -T 2>&1 | grep "subs filter module" && echo "Module verification passed" || (echo "Module verification failed" && exit 1)
+# 增强验证步骤
+RUN nginx -t && \
+    nginx -T 2>&1 | grep -q "subs filter module" && \
+    objdump -p /usr/lib/nginx/modules/ngx_http_subs_filter_module.so | grep -q "SONAME" && \
+    echo "Module verification passed" || (echo "Module verification failed" && exit 1)
